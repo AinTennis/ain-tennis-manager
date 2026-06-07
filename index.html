@@ -762,6 +762,7 @@ function isForced(a,b){ return S.forced.some(e=>(e.p1===a&&e.p2===b)||(e.p1===b&
 function renderCouples(){
   document.getElementById('st1').style.display='none';
   document.getElementById('st2').style.display='block';
+  window.scrollTo({top:0,behavior:'smooth'});
   const{couples,matches,rounds}=S.curCouples;
   const letters='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -975,6 +976,7 @@ function clockReset(){
 function backSt1(){
   document.getElementById('st1').style.display='block';
   document.getElementById('st2').style.display='none';
+  window.scrollTo({top:0,behavior:'smooth'});
   if(S.curCouples?.roundClocks) S.curCouples.roundClocks.forEach((_,ri)=>rcStop(ri));
   stopBell();
 }
@@ -990,7 +992,7 @@ function ringBell(){
       [1100,0.2],[1320,0.2],[1100,0.2],[880,0.6],[0,0.5]
     ];
     const cycleDur=melody.reduce((s,[,d])=>s+d+0.05,0);
-    const totalDur=10;
+    const totalDur=30;
     let round=0;
     function playRound(){
       if(bellStop||!bellCtx) return;

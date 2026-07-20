@@ -1,11 +1,17 @@
 <!DOCTYPE html>
-<html lang="it"><head>
-<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<html lang="it">
+<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AIN Tennis Manager</title>
-<script src="AIN%20Tennis%20Manager_files/supabase-js@2__tXu"></script>
-<link href="AIN%20Tennis%20Manager_files/css2__tXu.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.52.1/dist/umd/supabase.js"></script>
+<script>
+// Fallback: se jsDelivr non risponde, carica la libreria da unpkg prima dell'avvio.
+if(typeof supabase==='undefined'){
+  document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.52.1/dist/umd/supabase.js"><\/script>');
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
   --g9:#061009;--g8:#0c1e10;--g7:#163320;--g6:#1e4a2c;--g5:#286038;--g4:#3a8050;--g3:#5ca070;--g2:#90c8a0;--g1:#c8e8d0;--g0:#eef7f0;
@@ -355,7 +361,7 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
 </head>
 <body>
 
-<div id="splash" class="fade gone"><div class="ain-logo" role="img" aria-label="AIN"></div></div>
+<div id="splash"><div class="ain-logo" role="img" aria-label="AIN"></div></div>
 
 <div class="topbar">
   <div class="logo"><div class="ain-logo logo-img" role="img" aria-label="AIN"></div><span>AIN Tennis Manager</span></div>
@@ -377,7 +383,7 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
 <!-- ═══ HOME ═══ -->
 <div class="page active" id="page-home">
   <div class="hero">
-    <div class="hero-sub" id="hero-date">domenica 19 luglio 2026</div>
+    <div class="hero-sub" id="hero-date"></div>
     <div class="hero-head">
       <div class="ain-logo hero-logo" role="img" aria-label="AIN"></div>
       <div>
@@ -391,16 +397,16 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
   </div>
   <div class="sgrid">
     <button class="scard dark scard-btn" onclick="showRoster()">
-      <div class="sn" id="s-pl">20</div><div class="sl">Giocatori</div>
+      <div class="sn" id="s-pl">0</div><div class="sl">Giocatori</div>
     </button>
     <button class="scard gold scard-btn" onclick="nav('storico',document.getElementById('tab-storico'))">
-      <div class="sn" id="s-ss">13</div><div class="sl">Incontri</div>
+      <div class="sn" id="s-ss">0</div><div class="sl">Incontri</div>
     </button>
     <button class="scard dark scard-btn" onclick="nav('storico',document.getElementById('tab-storico'))">
-      <div class="sn" id="s-pt">78</div><div class="sl">Partite</div>
+      <div class="sn" id="s-pt">0</div><div class="sl">Partite</div>
     </button>
-    <button class="scard gold scard-btn" id="scard-leader" onclick="goLeaderProfile()" style="opacity: 1; cursor: pointer;">
-      <div class="sn" id="s-ldr">Claudio</div><div class="sl">Leader</div>
+    <button class="scard gold scard-btn" id="scard-leader" onclick="goLeaderProfile()">
+      <div class="sn" id="s-ldr">—</div><div class="sl">Leader</div>
     </button>
   </div>
   <div class="card">
@@ -408,108 +414,11 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
       <div class="ct">🏆 Top Classifica</div>
       <button class="btn btn-sm btn-ol" onclick="nav('ranking',document.getElementById('tab-ranking'))">Tutti →</button>
     </div>
-    <div id="home-top"><div class="pstat-row home-top1" style="cursor:pointer" onclick="showProfile(1780735407528)">
-      <div class="pav g crown">👑</div>
-      <div class="pi"><div class="pn">Claudio Cafissi</div><div class="ps">33 partite · 64% vinte</div>
-      <div class="pb"><div style="height:4px;flex:1;background:var(--g0);border-radius:2px"><div style="height:4px;width:100%;background:var(--g4);border-radius:2px"></div></div></div></div>
-      <div class="prating">76</div></div><div class="pstat-row" style="cursor:pointer" onclick="showProfile(1781344883840)">
-      <div class="pav">2</div>
-      <div class="pi"><div class="pn">Andrea Vitale</div><div class="ps">18 partite · 72% vinte</div>
-      <div class="pb"><div style="height:4px;flex:1;background:var(--g0);border-radius:2px"><div style="height:4px;width:89%;background:var(--g4);border-radius:2px"></div></div></div></div>
-      <div class="prating">68</div></div><div class="pstat-row" style="cursor:pointer" onclick="showProfile(1781935080496)">
-      <div class="pav">3</div>
-      <div class="pi"><div class="pn">Vittorio Lugani</div><div class="ps">3 partite · 100% vinte</div>
-      <div class="pb"><div style="height:4px;flex:1;background:var(--g0);border-radius:2px"><div style="height:4px;width:59%;background:var(--g4);border-radius:2px"></div></div></div></div>
-      <div class="prating">45</div></div><div class="pstat-row" style="cursor:pointer" onclick="showProfile(1780735437672)">
-      <div class="pav">4</div>
-      <div class="pi"><div class="pn">Marco Prosperi</div><div class="ps">36 partite · 47% vinte</div>
-      <div class="pb"><div style="height:4px;flex:1;background:var(--g0);border-radius:2px"><div style="height:4px;width:59%;background:var(--g4);border-radius:2px"></div></div></div></div>
-      <div class="prating">45</div></div><div class="pstat-row" style="cursor:pointer" onclick="showProfile(1780735824064)">
-      <div class="pav">5</div>
-      <div class="pi"><div class="pn">Leone</div><div class="ps">12 partite · 67% vinte</div>
-      <div class="pb"><div style="height:4px;flex:1;background:var(--g0);border-radius:2px"><div style="height:4px;width:58%;background:var(--g4);border-radius:2px"></div></div></div></div>
-      <div class="prating">44</div></div></div>
+    <div id="home-top"></div>
   </div>
-  <div class="card" id="home-last" style="display: block;">
+  <div class="card" id="home-last" style="display:none">
     <div class="ch"><div class="ct">📋 Ultimo Incontro</div></div>
-    <div id="home-last-body"><div style="font-size:15px;font-weight:600;color:var(--tm);margin-bottom:14px">18/07/2026 · 8 giocatori</div><div class="winner-banner" style="margin-top:0;margin-bottom:14px">
-        <div class="winner-banner-title"><span style="font-size:28px;vertical-align:middle;margin-right:6px">🏆</span>Coppia Vincitrice</div>
-        <div class="winner-banner-name">Marco Prosperi &amp; Claudio Cafissi</div>
-        <div class="winner-banner-score">7 punti · diff. +9</div>
-      </div><div class="res-row">
-          <div class="res-teams">
-            <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:6px">
-              <span class="win-tick">✓</span>
-              <strong style="color:var(--g5)">Cosimo De Vincolis<br>Enrico Cruciani</strong>
-            </div>
-            <div style="display:flex;align-items:flex-start;gap:6px">
-              <span style="font-size:11px;font-weight:700;background:#f0f0f0;color:#888;padding:1px 7px;border-radius:20px;margin-top:2px;flex-shrink:0">vs</span>
-              <span style="color:var(--tm)">Roberto Barsanti<br>Marco Benedetti</span>
-            </div>
-          </div>
-          <div class="res-score">5–4</div>
-        </div><div class="res-row">
-          <div class="res-teams">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-              <span style="font-size:11px;font-weight:700;background:var(--d0);color:var(--d7);padding:1px 7px;border-radius:20px;">A</span>
-              <span style="color:var(--g5);font-weight:700">Andrea Vitale<br>Luigi Di Maio</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <span style="font-size:11px;font-weight:700;background:var(--d0);color:var(--d7);padding:1px 7px;border-radius:20px;">B</span>
-              <span style="color:var(--g5);font-weight:700">Marco Prosperi<br>Claudio Cafissi</span>
-            </div>
-            <div style="font-size:12px;font-weight:700;color:var(--d7);margin-top:4px">🤝 Pareggio</div>
-          </div>
-          <div class="res-score">4–4</div>
-        </div><div class="res-row">
-          <div class="res-teams">
-            <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:6px">
-              <span class="win-tick">✓</span>
-              <strong style="color:var(--g5)">Marco Prosperi<br>Claudio Cafissi</strong>
-            </div>
-            <div style="display:flex;align-items:flex-start;gap:6px">
-              <span style="font-size:11px;font-weight:700;background:#f0f0f0;color:#888;padding:1px 7px;border-radius:20px;margin-top:2px;flex-shrink:0">vs</span>
-              <span style="color:var(--tm)">Roberto Barsanti<br>Marco Benedetti</span>
-            </div>
-          </div>
-          <div class="res-score">6–2</div>
-        </div><div class="res-row">
-          <div class="res-teams">
-            <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:6px">
-              <span class="win-tick">✓</span>
-              <strong style="color:var(--g5)">Cosimo De Vincolis<br>Enrico Cruciani</strong>
-            </div>
-            <div style="display:flex;align-items:flex-start;gap:6px">
-              <span style="font-size:11px;font-weight:700;background:#f0f0f0;color:#888;padding:1px 7px;border-radius:20px;margin-top:2px;flex-shrink:0">vs</span>
-              <span style="color:var(--tm)">Andrea Vitale<br>Luigi Di Maio</span>
-            </div>
-          </div>
-          <div class="res-score">5–2</div>
-        </div><div class="res-row">
-          <div class="res-teams">
-            <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:6px">
-              <span class="win-tick">✓</span>
-              <strong style="color:var(--g5)">Andrea Vitale<br>Luigi Di Maio</strong>
-            </div>
-            <div style="display:flex;align-items:flex-start;gap:6px">
-              <span style="font-size:11px;font-weight:700;background:#f0f0f0;color:#888;padding:1px 7px;border-radius:20px;margin-top:2px;flex-shrink:0">vs</span>
-              <span style="color:var(--tm)">Roberto Barsanti<br>Marco Benedetti</span>
-            </div>
-          </div>
-          <div class="res-score">6–3</div>
-        </div><div class="res-row">
-          <div class="res-teams">
-            <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:6px">
-              <span class="win-tick">✓</span>
-              <strong style="color:var(--g5)">Marco Prosperi<br>Claudio Cafissi</strong>
-            </div>
-            <div style="display:flex;align-items:flex-start;gap:6px">
-              <span style="font-size:11px;font-weight:700;background:#f0f0f0;color:#888;padding:1px 7px;border-radius:20px;margin-top:2px;flex-shrink:0">vs</span>
-              <span style="color:var(--tm)">Cosimo De Vincolis<br>Enrico Cruciani</span>
-            </div>
-          </div>
-          <div class="res-score">6–1</div>
-        </div></div>
+    <div id="home-last-body"></div>
   </div>
 </div>
 
@@ -529,13 +438,13 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
     <div class="card">
       <div class="ch"><div class="ct">Partecipanti</div><span class="tag tg" id="sel-cnt">0 sel.</span></div>
       <p style="font-size:14px;color:var(--tm);margin-bottom:12px;">Seleziona un numero divisibile per 4 (min. 4)</p>
-      <div id="pchips" class="pgrid"><div class="pchip" onclick="toggleP(1780735824064)"><span class="pdot"></span>Leone</div><div class="pchip" onclick="toggleP(1780735450960)"><span class="pdot"></span>Fausto Barberi</div><div class="pchip" onclick="toggleP(1780735929376)"><span class="pdot"></span>Roberto Barsanti</div><div class="pchip" onclick="toggleP(1780735950640)"><span class="pdot"></span>Massimo Bartolomei</div><div class="pchip" onclick="toggleP(1780735517864)"><span class="pdot"></span>Marco Benedetti</div><div class="pchip" onclick="toggleP(1780735365193)"><span class="pdot"></span>Andrea Biagini</div><div class="pchip" onclick="toggleP(1780735473976)"><span class="pdot"></span>Elia Bilotta</div><div class="pchip" onclick="toggleP(1780735407528)"><span class="pdot"></span>Claudio Cafissi</div><div class="pchip" onclick="toggleP(1780735844032)"><span class="pdot"></span>Antonella canci</div><div class="pchip" onclick="toggleP(1780735919272)"><span class="pdot"></span>Enrico Cruciani</div><div class="pchip" onclick="toggleP(1780735258009)"><span class="pdot"></span>Cosimo De Vincolis</div><div class="pchip" onclick="toggleP(1780735224505)"><span class="pdot"></span>Luigi Di Maio</div><div class="pchip" onclick="toggleP(1781935080496)"><span class="pdot"></span>Vittorio Lugani</div><div class="pchip" onclick="toggleP(1780735487880)"><span class="pdot"></span>Franco Morini</div><div class="pchip" onclick="toggleP(1780735437672)"><span class="pdot"></span>Marco Prosperi</div><div class="pchip" onclick="toggleP(1781123096747)"><span class="pdot"></span>Stefano Salvia</div><div class="pchip" onclick="toggleP(1780735966175)"><span class="pdot"></span>Stefano Talini</div><div class="pchip" onclick="toggleP(1781795942793)"><span class="pdot"></span>Andrea Tedesco</div><div class="pchip" onclick="toggleP(1780735502625)"><span class="pdot"></span>Massimo Tessieri</div><div class="pchip" onclick="toggleP(1781344883840)"><span class="pdot"></span>Andrea Vitale</div></div>
+      <div id="pchips" class="pgrid"></div>
       <div class="dv"></div>
       <div class="fg">
         <label class="fl" style="font-size:18px;font-weight:700">📅 Data dell'incontro</label>
         <input type="date" class="fi" id="incontro-date" style="font-size:20px;font-weight:700;padding:18px 16px">
       </div>
-      <button class="btn btn-g btn-w" id="btn-gen" onclick="genera()" disabled="disabled">Seleziona almeno 4 giocatori</button>
+      <button class="btn btn-g btn-w" id="btn-gen" onclick="genera()" disabled>Genera Abbinamenti</button>
     </div>
   </div>
   <div id="st2" style="display:none">
@@ -562,8 +471,7 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
   <div class="sh"><h1>📜 Regolamento</h1><p>Le regole degli incontri · proposte e votazioni dei soci</p></div>
   <div class="card">
     <div class="ch"><div class="ct">📋 Regole in vigore</div></div>
-    <div id="rules-list"><div class="empty" style="padding:20px"><div class="ei">⚙️</div>
-      <p>Sezione non ancora attivata sul database.<br>Esegui lo script SQL indicato nelle istruzioni su Supabase.</p></div></div>
+    <div id="rules-list"></div>
     <div id="rules-admin"></div>
   </div>
   <button class="btn btn-g btn-w" style="margin-bottom:18px" onclick="openProposta()">✚ Proponi una regola</button>
@@ -727,7 +635,7 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
     <div class="fg"><label class="fl">Chi propone *</label><select class="fs" id="pr-autore"></select></div>
     <div class="fg"><label class="fl">Tipo di proposta *</label>
       <select class="fs" id="pr-tipo" onchange="propTipoChange()">
-        <option value="new" selected="selected">Nuova regola</option>
+        <option value="new">Nuova regola</option>
         <option value="edit">Modifica di una regola esistente</option>
       </select></div>
     <div class="fg" id="pr-target-wrap" style="display:none">
@@ -773,7 +681,8 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
 // ═══════════════════════════════════════════════
 const SUPABASE_URL = 'https://svwjjghahstiaaffodeq.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2d2pqZ2hhaHN0aWFhZmZvZGVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MTk5OTMsImV4cCI6MjA5NjI5NTk5M30.nm2v4qug0Ps6Nmhfjd7mtroQAiZq0LwOonlpCyIELPw';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Il client viene creato all'avvio, dopo aver verificato che la libreria sia disponibile.
+let sb = null;
 
 const DEFAULT_SA  = 'AIN!SuperAdmin2024';
 const DEFAULT_ADM = 'AIN_Admin2024';
@@ -788,7 +697,7 @@ function presFactor(pres){ return PRES_FORMULA==='linear' ? pres : Math.sqrt(pre
 
 let S = {
   role:'guest', players:[], sessions:[], exclusions:[], forced:[],
-  rules:[], proposals:[], _rulesErr:false,
+  rules:[], proposals:[], _rulesErr:false, adjustments:{},
   curSel:[], curCouples:null, pwdSA:DEFAULT_SA, pwdAdm:DEFAULT_ADM, _leaderId:null
 };
 
@@ -817,6 +726,8 @@ async function hydrate() {
     S.pwdAdm = adm?.value || DEFAULT_ADM;
     S._rulesSeeded = cfg.find(c=>c.key==='rules_seeded')?.value === '1';
     const pf=cfg.find(c=>c.key==='pres_formula')?.value; if(pf==='linear'||pf==='sqrt') PRES_FORMULA=pf;
+    // Aggiustamenti manuali dei punti (bonus/malus assegnati dal Super Admin)
+    try{ const adj=cfg.find(c=>c.key==='point_adjustments')?.value; S.adjustments = adj?JSON.parse(adj):{}; }catch(e){ S.adjustments={}; }
     sortSessions();  // ordine cronologico vero (la data sul DB è testo gg/mm/aaaa)
   } catch(e){ console.error('Errore caricamento:', e); toast('Errore connessione database','err'); }
   await hydrateRules();
@@ -904,6 +815,9 @@ async function dbDeleteForced(id){
 async function dbSaveConfig(key,value){
   const {error}=await sb.from('config').upsert({key,value});
   if(error) throw error;
+}
+async function saveAdjustments(){
+  await dbSaveConfig('point_adjustments', JSON.stringify(S.adjustments||{}));
 }
 async function dbSaveRule(r){
   const {error}=await sb.from('rules').upsert({id:r.id,testo:r.testo,pos:r.pos});
@@ -1014,7 +928,9 @@ function ratings(){
     r.presTot = totInc;
     r.presRate = totInc>0 ? r.presInc/totInc : 0;   // 0..1
     r.reliab = presFactor(r.presRate);              // fattore applicato (sqrt o linear)
-    r.rating = r.sessions>0 ? Math.max(0,Math.round(r.perf*r.reliab)) : 0;
+    r.baseRating = r.sessions>0 ? Math.max(0,Math.round(r.perf*r.reliab)) : 0;
+    r.adjust = Number(S.adjustments?.[r.id]||0);    // bonus/malus manuale del Super Admin
+    r.rating = Math.max(0, r.baseRating + r.adjust);
     r.winPct = r.matches>0 ? Math.round(r.wins/r.matches*100) : 0;
   });
   return Object.values(R).sort((a,b)=>b.rating-a.rating);
@@ -1474,7 +1390,7 @@ function renderRanking(){
     let out=`<div class="leader-card" onclick="showProfile(${L.id})">
       <div class="leader-top"><span class="leader-crown">👑</span><span class="leader-label">Leader</span></div>
       <div class="leader-name">${L.name}</div>
-      <div class="leader-stats">${L.matches} part. · ${L.winPct}% vinte · presenze ${Math.round(L.presRate*100)}% (${L.presInc}/${L.presTot}) · diff. ${L.gameDiff>0?'+':''}${L.gameDiff}</div>
+      <div class="leader-stats">${L.matches} part. · ${L.winPct}% vinte · presenze ${Math.round(L.presRate*100)}% (${L.presInc}/${L.presTot}) · diff. ${L.gameDiff>0?'+':''}${L.gameDiff}${L.adjust?` · ${L.adjust>0?'+':''}${L.adjust} manuale`:''}</div>
       <div class="leader-rating"><div class="n">${L.rating}</div><div class="l">punti</div></div>
     </div>`;
     // ── Dal 2° in poi ──
@@ -1487,7 +1403,7 @@ function renderRanking(){
           <div class="pi">
             <div class="pn">${r.name}</div>
             <div class="rbar-w"><div class="rbar" style="width:${Math.max(4,Math.round(r.rating/mx*100))}%"></div></div>
-            <div class="ps">${r.matches} part. · V:${r.wins} P:${r.draws} S:${r.losses} · ${r.winPct}% vinte · <span style="color:var(--d6);font-weight:700">presenze ${Math.round(r.presRate*100)}%</span></div>
+            <div class="ps">${r.matches} part. · V:${r.wins} P:${r.draws} S:${r.losses} · ${r.winPct}% vinte · <span style="color:var(--d6);font-weight:700">presenze ${Math.round(r.presRate*100)}%</span>${r.adjust?` · <span style="color:${r.adjust>0?'var(--g5)':'#c03030'};font-weight:700">${r.adjust>0?'+':''}${r.adjust} manuale</span>`:''}</div>
           </div>
           <div style="text-align:right;flex-shrink:0">
             <div class="prating">${r.rating}</div>
@@ -1961,7 +1877,22 @@ function showProfile(id){
       h+=`</div>`;
     });
   }
-  if(S.role==='superadmin') h+=`<div class="dv"></div><button class="btn btn-warn btn-w btn-sm" onclick="cm('m-profile');openEditPlayer(${id})">✏️ Modifica Scheda</button>`;
+  if(S.role==='superadmin'){
+    const cur=Number(S.adjustments?.[id]||0);
+    h+=`<div class="dv"></div>
+      <div style="background:var(--g0);border-radius:var(--rs);padding:16px;margin-bottom:14px">
+        <div style="font-size:15px;font-weight:800;color:var(--g7);margin-bottom:4px">⚖️ Punti manuali</div>
+        <div style="font-size:14px;color:var(--tm);margin-bottom:12px">Bonus o penalità aggiunti al punteggio in classifica. Attuale: <strong style="color:${cur>0?'var(--g5)':cur<0?'#c03030':'var(--ts)'}">${cur>0?'+':''}${cur}</strong></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-g btn-sm" onclick="adjustPoints(${id},5)">+5</button>
+          <button class="btn btn-g btn-sm" onclick="adjustPoints(${id},1)">+1</button>
+          <button class="btn btn-warn btn-sm" onclick="adjustPoints(${id},-1)">−1</button>
+          <button class="btn btn-warn btn-sm" onclick="adjustPoints(${id},-5)">−5</button>
+          ${cur!==0?`<button class="btn btn-red btn-sm" onclick="adjustPoints(${id},'reset')">Azzera</button>`:''}
+        </div>
+      </div>
+      <button class="btn btn-warn btn-w btn-sm" onclick="cm('m-profile');openEditPlayer(${id})">✏️ Modifica Scheda</button>`;
+  }
   document.getElementById('profile-body').innerHTML=h; om('m-profile');
 }
 
@@ -2062,6 +1993,17 @@ async function addPlayer(){
   try{await dbSavePlayer(p);S.players.push(p);}catch(e){toast('Errore: '+e.message,'err');return;} renderChips(); renderAdmPlayers(); refreshAll(); cm('m-addpl');
   toast(nome+' aggiunto!','ok');
   ['np-nome','np-cognome','np-nick','np-tessera','np-email','np-tel','np-note'].forEach(id=>{ document.getElementById(id).value=''; });
+}
+async function adjustPoints(id, delta){
+  if(S.role!=='superadmin'){ toast('Solo il Super Admin può modificare i punti','err'); return; }
+  if(!S.adjustments) S.adjustments={};
+  if(delta==='reset'){ delete S.adjustments[id]; }
+  else { S.adjustments[id]=Number(S.adjustments[id]||0)+delta; if(S.adjustments[id]===0) delete S.adjustments[id]; }
+  try{ await saveAdjustments(); }catch(e){ toast('Errore salvataggio: '+e.message,'err'); return; }
+  refreshAll();
+  showProfile(id);   // riapre il profilo aggiornato
+  const cur=Number(S.adjustments[id]||0);
+  toast(delta==='reset'?'Punti manuali azzerati':`Punti aggiornati: ${cur>0?'+':''}${cur}`,'gld');
 }
 function openEditPlayer(id){
   const p=S.players.find(x=>x.id===id); if(!p) return;
@@ -2405,10 +2347,22 @@ function hideSplash(){
 setTimeout(hideSplash, 3000);
 
 document.addEventListener('DOMContentLoaded', async ()=>{
+  // Verifica che la libreria Supabase sia stata caricata (jsDelivr o fallback unpkg)
+  if(typeof supabase==='undefined' || !supabase.createClient){
+    const b=document.body;
+    const msg=document.createElement('div');
+    msg.style.cssText='position:fixed;inset:0;z-index:99999;background:#0c1e10;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;font-family:sans-serif';
+    msg.innerHTML='<div style="font-size:22px;font-weight:800;margin-bottom:12px">Connessione non riuscita</div>'+
+      '<div style="font-size:16px;max-width:420px;line-height:1.5;color:#c8e8d0">Non è stato possibile caricare la libreria di connessione al database. Controlla la connessione a internet e ricarica la pagina.</div>'+
+      '<button onclick="location.reload()" style="margin-top:22px;padding:12px 28px;border:none;border-radius:12px;background:#d4a820;color:#0c1e10;font-size:16px;font-weight:700;cursor:pointer">Ricarica</button>';
+    b.appendChild(msg);
+    const sp=document.getElementById('splash'); if(sp) sp.style.display='none';
+    return;
+  }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   await hydrate();
   renderHome(); renderChips(); updateSelCnt(); clockReset(); renderRegolamento();
 });
 </script>
-
-
-</body></html>
+</body>
+</html>

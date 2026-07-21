@@ -200,13 +200,14 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
   padding:22px 20px;margin-bottom:16px;box-shadow:0 8px 30px rgba(6,16,9,.28);border:2px solid var(--d3);position:relative;overflow:hidden;cursor:pointer;}
 .leader-card::after{content:'';position:absolute;top:-40px;right:-30px;width:150px;height:150px;border-radius:50%;background:rgba(212,168,32,.12);}
 .leader-crown{font-size:34px;line-height:1;filter:drop-shadow(0 0 8px rgba(255,205,60,.7));animation:trophyPulse 1.6s ease-in-out infinite;}
-.leader-top{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.leader-top{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-right:70px;}
 .leader-label{font-size:13px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--d2);}
 .leader-name{font-family:var(--f-head);font-size:32px;font-weight:800;color:#fff;line-height:1.05;margin-bottom:6px;}
 .leader-stats{font-size:15px;color:var(--g1);font-weight:600;}
-.leader-rating{position:absolute;right:20px;bottom:18px;text-align:right;}
+.leader-rating{position:absolute;right:20px;top:18px;text-align:right;}
 .leader-rating .n{font-family:var(--f-head);font-size:44px;font-weight:800;color:var(--d2);line-height:1;}
 .leader-rating .l{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--g2);}
+.leader-stats{padding-right:70px;}
 @media(max-width:400px){ .leader-name{font-size:26px;} .leader-rating .n{font-size:36px;} }
 
 /* ── ADMIN ── */
@@ -429,6 +430,7 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
   <div class="card" id="rank-pending" style="display:none;padding:16px;"></div>
   <div id="pres-panel"></div>
   <div class="card" id="rank-legend" style="padding:16px;"></div>
+  <div id="career-rank-panel"></div>
 </div>
 
 <!-- ═══ INCONTRO ═══ -->
@@ -1417,6 +1419,7 @@ function renderRanking(){
 
   // ── Pannello di anteprima formula (solo Super Admin) ──
   renderPresPanel(all, totInc);
+  renderCareerRankPanel();
 
   const lg=document.getElementById('rank-legend');
   if(lg) lg.innerHTML=`
@@ -1480,6 +1483,48 @@ async function setPresFormula(f){
   try{ await dbSaveConfig('pres_formula', f); }catch(e){}
   renderRanking(); refreshAll();
   toast(f==='sqrt'?'Formula equilibrata attivata':'Formula severa attivata','gld');
+}
+
+// ── CLASSIFICA STORICA (Super Admin) ──
+// Somma di TUTTI i punti partita dall'inizio della app, senza filtro 60gg,
+// senza presenze e senza aggiustamenti manuali: solo vittorie e pareggi.
+let _showCareerRank=false;
+function toggleCareerRank(){ _showCareerRank=!_showCareerRank; renderCareerRankPanel(); }
+function renderCareerRankPanel(){
+  const el=document.getElementById('career-rank-panel'); if(!el) return;
+  if(S.role!=='superadmin'){ el.innerHTML=''; return; }
+
+  if(!_showCareerRank){
+    el.innerHTML=`<button class="btn btn-ol btn-w btn-sm" style="margin-top:14px" onclick="toggleCareerRank()">📜 Mostra classifica storica (dall'inizio)</button>`;
+    return;
+  }
+  // Ordina per punti totali di carriera (poi differenza game)
+  // Punti PURI di carriera: 3 per vittoria + 1 per pareggio, SENZA bonus En Plein.
+  // (I totalPts di careerStats includono il bonus, che qui non deve contare.)
+  const cr=careerStats().filter(r=>r.matches>0)
+    .map(r=>({...r, purePts: r.wins*3 + r.draws*1}))
+    .sort((a,b)=>b.purePts-a.purePts||b.gameDiff-a.gameDiff);
+  const rows=cr.map((r,i)=>`
+    <div class="pstat-row" style="padding:12px 16px">
+      <div class="pav${i===0?' g':''}">${i+1}</div>
+      <div class="pi">
+        <div class="pn">${r.name}</div>
+        <div class="ps">${r.sessions} incontri · ${r.matches} partite · V:${r.wins} P:${r.draws} S:${r.losses}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div class="prating">${r.purePts}</div>
+        <div style="font-size:13px;font-weight:700;color:${r.gameDiff>0?'var(--g5)':r.gameDiff<0?'#c03030':'var(--tm)'}">diff. ${r.gameDiff>0?'+':''}${r.gameDiff}</div>
+      </div>
+    </div>`).join('');
+  el.innerHTML=`
+    <div class="card" style="padding:16px;margin-top:14px;border:2px solid var(--g6)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:17px;font-weight:800;font-family:var(--f-head);color:var(--g7)">📜 Classifica storica</div>
+        <button class="btn btn-ol btn-sm" onclick="toggleCareerRank()">Nascondi</button>
+      </div>
+      <div style="font-size:14px;color:var(--tm);margin-bottom:14px">Punti totali accumulati da tutti i partecipanti dall'inizio della app — solo risultati (3 vittoria · 1 pareggio · 0 sconfitta), senza bonus En Plein, senza presenze né correzioni. <span style="font-weight:600">Visibile solo al Super Admin.</span></div>
+      <div class="card" style="padding:4px 0;box-shadow:none;border:1px solid var(--bd)">${rows}</div>
+    </div>`;
 }
 
 // ═══════════════════════════════════════════════

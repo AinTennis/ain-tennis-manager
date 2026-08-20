@@ -407,10 +407,10 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
       <div class="sn" id="s-pt">0</div><div class="sl">Partite</div>
     </button>
     <button class="scard gold scard-btn" id="scard-leader" onclick="goLeaderProfile()">
-      <div class="sn" id="s-ldr">—</div><div class="sl">Leader</div>
+      <div class="sn" id="s-ldr">—</div><div class="sl" id="s-ldr-lbl">Leader</div>
     </button>
   </div>
-  <div class="card">
+  <div class="card" id="home-top-card">
     <div class="ch">
       <div class="ct">🏆 Top Classifica</div>
       <button class="btn btn-sm btn-ol" onclick="nav('ranking',document.getElementById('tab-ranking'))">Tutti →</button>
@@ -697,6 +697,32 @@ const SWEEP_BONUS = 5;  // punti extra alla coppia che vince tutte e 3 le partit
 let PRES_FORMULA = 'sqrt';
 function presFactor(pres){ return PRES_FORMULA==='linear' ? pres : Math.sqrt(pres); }
 
+// ═══════════════════════════════════════════════
+//  VISIBILITÀ CLASSIFICA E PUNTEGGI
+// ═══════════════════════════════════════════════
+// Se RANK_PUBLIC è false, classifica, rating e punti dei singoli giocatori
+// sono visibili SOLO al Super Admin. Incontri, storico e vincitori restano
+// sempre visibili a tutti. L'interruttore è nel pannello Admin ed è salvato
+// in config (chiave 'rank_public'), quindi vale per tutti i dispositivi.
+let RANK_PUBLIC = true;
+function canSeeRank(){ return RANK_PUBLIC || S.role==='superadmin'; }
+function applyRankVisibility(){
+  const tab=document.getElementById('tab-ranking');
+  if(tab) tab.classList.toggle('hidden', !canSeeRank());
+  // Se la pagina Classifica è aperta e non è più consentita, torno alla Home
+  const pg=document.getElementById('page-ranking');
+  if(pg && pg.classList.contains('active') && !canSeeRank()){
+    nav('home', document.getElementById('tab-home'));
+  }
+}
+async function setRankPublic(v){
+  RANK_PUBLIC=!!v;
+  try{ await dbSaveConfig('rank_public', RANK_PUBLIC?'1':'0'); }
+  catch(e){ toast('Errore salvataggio: '+e.message,'err'); }
+  applyRankVisibility(); refreshAll(); renderAdmin();
+  toast(RANK_PUBLIC?'Classifica visibile a tutti':'Classifica riservata al Super Admin','gld');
+}
+
 let S = {
   role:'guest', players:[], sessions:[], exclusions:[], forced:[],
   rules:[], proposals:[], _rulesErr:false, adjustments:{},
@@ -728,6 +754,8 @@ async function hydrate() {
     S.pwdAdm = adm?.value || DEFAULT_ADM;
     S._rulesSeeded = cfg.find(c=>c.key==='rules_seeded')?.value === '1';
     const pf=cfg.find(c=>c.key==='pres_formula')?.value; if(pf==='linear'||pf==='sqrt') PRES_FORMULA=pf;
+    // Visibilità pubblica di classifica e punteggi ('0' = solo Super Admin)
+    RANK_PUBLIC = cfg.find(c=>c.key==='rank_public')?.value !== '0';
     // Aggiustamenti manuali dei punti (bonus/malus assegnati dal Super Admin)
     try{ const adj=cfg.find(c=>c.key==='point_adjustments')?.value; S.adjustments = adj?JSON.parse(adj):{}; }catch(e){ S.adjustments={}; }
     sortSessions();  // ordine cronologico vero (la data sul DB è testo gg/mm/aaaa)
@@ -1324,7 +1352,7 @@ function updateWinner(){
   w.innerHTML=`<div class="winner-banner${isSweep?' sweep':''}">
     <div class="winner-banner-title">${trophyIcon(isSweep,28)}${isSweep?'En Plein!':'Coppia Vincitrice'}</div>
     <div class="winner-banner-name">${pname(p1)} &amp; ${pname(p2)}</div>
-    <div class="winner-banner-score">${winner.pts} punti · diff. game ${winner.diff>0?'+':''}${winner.diff}${isSweep?` · <strong style="color:var(--d2)">+${SWEEP_BONUS} bonus en plein</strong>`:''}</div>
+    <div class="winner-banner-score">${canSeeRank()?`${winner.pts} punti · `:''}diff. game ${winner.diff>0?'+':''}${winner.diff}${isSweep&&canSeeRank()?` · <strong style="color:var(--d2)">+${SWEEP_BONUS} bonus en plein</strong>`:''}</div>
   </div>`;
 }
 
@@ -1379,6 +1407,14 @@ function updateSelCnt(){
 //  RANKING
 // ═══════════════════════════════════════════════
 function renderRanking(){
+  // Sicurezza: se la classifica non è pubblica, non genero nulla per i non Super Admin
+  if(!canSeeRank()){
+    ['rank-list','pres-panel','rank-legend','career-rank-panel'].forEach(id=>{
+      const e=document.getElementById(id); if(e) e.innerHTML='';
+    });
+    const rp=document.getElementById('rank-pending'); if(rp) rp.style.display='none';
+    return;
+  }
   const all=ratings(),rs=all.filter(r=>r.matches>0);
   const mx=rs[0]?.rating||1;
   const rl=document.getElementById('rank-list'); if(!rl) return;
@@ -1556,11 +1592,26 @@ function renderHome(){
   document.getElementById('s-pt').textContent=tot;
   const allRatings=ratings(),qualified=allRatings.filter(r=>r.matches>0);
   const leader=qualified[0]||null; S._leaderId=leader?.id||null;
-  document.getElementById('s-ldr').textContent=leader?.name?.split(' ')[0]||'—';
+  const ldrN=document.getElementById('s-ldr'), ldrL=document.getElementById('s-ldr-lbl');
+  if(canSeeRank()){
+    ldrN.textContent=leader?.name?.split(' ')[0]||'—';
+    ldrN.style.fontSize='';
+    if(ldrL) ldrL.textContent='Leader';
+  } else {
+    // Classifica riservata: al posto del Leader mostro la data dell'ultimo incontro
+    const ld=S.sessions[0]?.date||'';
+    ldrN.textContent=ld?ld.split('/').slice(0,2).join('/'):'—';
+    ldrN.style.fontSize='34px';
+    if(ldrL) ldrL.textContent='Ultimo';
+  }
   document.getElementById('hero-new-btn').style.display=(S.role==='admin'||S.role==='superadmin')?'block':'none';
-  const lcard=document.getElementById('scard-leader'); lcard.style.opacity=leader?'1':'0.7'; lcard.style.cursor=leader?'pointer':'default';
+  const lcard=document.getElementById('scard-leader');
+  const lok=canSeeRank()?!!leader:S.sessions.length>0;
+  lcard.style.opacity=lok?'1':'0.7'; lcard.style.cursor=lok?'pointer':'default';
 
-  // Top classifica
+  // Top classifica (nascosta se la classifica non è pubblica)
+  const htc=document.getElementById('home-top-card');
+  if(htc) htc.style.display=canSeeRank()?'':'none';
   const top=qualified.slice(0,5),maxR=top[0]?.rating||1;
   document.getElementById('home-top').innerHTML=top.length===0?
     `<div class="empty"><div class="ei">🎾</div><p>Nessuna partita negli ultimi ${RANK_DAYS} giorni</p></div>`:
@@ -1582,7 +1633,7 @@ function renderHome(){
       h+=`<div class="winner-banner${sw?' sweep':''}" style="margin-top:0;margin-bottom:14px">
         <div class="winner-banner-title">${trophyIcon(sw,28)}${sw?'En Plein!':'Coppia Vincitrice'}${sw?'<span class="sweep-badge">3 su 3</span>':''}</div>
         <div class="winner-banner-name">${pname(winner.p1)} &amp; ${pname(winner.p2)}</div>
-        <div class="winner-banner-score">${winner.pts} punti · diff. ${winner.diff>0?'+':''}${winner.diff}${sw?` · <strong style="color:var(--d2)">+${SWEEP_BONUS} bonus</strong>`:''}</div>
+        <div class="winner-banner-score">${canSeeRank()?`${winner.pts} punti · `:''}diff. ${winner.diff>0?'+':''}${winner.diff}${sw&&canSeeRank()?` · <strong style="color:var(--d2)">+${SWEEP_BONUS} bonus</strong>`:''}</div>
       </div>`;
     }
     // Tutte le partite: vincitrice prima in verde grassetto, perdente dopo
@@ -1641,7 +1692,7 @@ function renderStorico(){
     const winnerHtml=winner?`<div style="background:${winner.sweep?'linear-gradient(135deg,#2a1c00,#6e4a00)':'var(--g7)'};padding:10px 14px;border-bottom:1px solid var(--bd)">
       ${trophyIcon(winner.sweep,26)}<span style="font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${winner.sweep?'var(--d2)':'var(--g3)'}">${winner.sweep?'En Plein: ':'Vincitori: '}</span>
       <span style="font-family:var(--f-head);font-size:16px;font-weight:700;color:${winner.sweep?'#fff':'var(--d3)'}">${pname(winner.p1)} &amp; ${pname(winner.p2)}</span>
-      <span style="font-size:13px;color:var(--g2)"> · ${winner.pts}pt</span>${winner.sweep?'<span class="sweep-badge">3/3</span>':''}</div>`:
+      ${canSeeRank()?`<span style="font-size:13px;color:var(--g2)"> · ${winner.pts}pt</span>`:''}${winner.sweep?'<span class="sweep-badge">3/3</span>':''}</div>`:
       `<div style="background:var(--g8);padding:8px 14px;border-bottom:1px solid var(--bd);font-size:13px;color:var(--g3)">🤝 Pareggio generale</div>`;
     const resHtml=s.results.map(r=>{
       const sc1=parseInt(r.s1)||0,sc2=parseInt(r.s2)||0,w=sc1>sc2?'t1':sc2>sc1?'t2':'draw';
@@ -1795,6 +1846,8 @@ function renderStats(){
 
   const rmapSort={}; ratings().forEach((r,i)=>{ if(r.matches>0) rmapSort[r.id]=i+1; });
   const qualified=allR.filter(r=>r.matches>0).sort((a,b)=>{
+    // Classifica riservata: ordine alfabetico, così non trapela la posizione
+    if(!canSeeRank()) return String(a.name).localeCompare(String(b.name));
     const ra=rmapSort[a.id]||9999, rb=rmapSort[b.id]||9999;
     return ra-rb || b.matches-a.matches;
   });
@@ -1817,12 +1870,12 @@ function renderStats(){
         : '';
       const lastCol = st.lastRes==='V'?'var(--g5)':st.lastRes==='S'?'#c03030':'var(--d6)';
       html+=`<div class="pstat-row" style="padding:14px 16px;cursor:pointer" onclick="showProfile(${r.id})">
-        <div class="pav${rk===1?' g':''}" title="Posizione in classifica">${rk?rk:'—'}</div>
+        <div class="pav${canSeeRank()&&rk===1?' g':''}" title="${canSeeRank()?'Posizione in classifica':''}">${canSeeRank()?(rk?rk:'—'):pinits(r.id)}</div>
         <div class="pi">
           <div class="pn">${r.name}</div>
           <div class="ps">🎾 Incontri: <strong>${r.sessions}</strong> · Partite: <strong>${r.matches}</strong> · ${r.winPct}% vinte</div>
           <div class="ps">V:${r.wins} P:${r.draws} S:${r.losses} · Media game/partita: ${gamePM>0?'+':''}${gamePM}</div>
-          <div style="font-size:13px;color:var(--tm);margin-top:2px">📆 Ultimo incontro: ${st.lastDate||'—'}${st.lastRes?` · <span style="color:${lastCol};font-weight:700">${lastEsito}</span> (${st.lastPts}pt · diff. ${st.lastDiff>0?'+':''}${st.lastDiff})`:''}${sweepTxt?' · '+sweepTxt:''}</div>
+          <div style="font-size:13px;color:var(--tm);margin-top:2px">📆 Ultimo incontro: ${st.lastDate||'—'}${st.lastRes?` · <span style="color:${lastCol};font-weight:700">${lastEsito}</span> (${canSeeRank()?st.lastPts+'pt · ':''}diff. ${st.lastDiff>0?'+':''}${st.lastDiff})`:''}${sweepTxt?' · '+sweepTxt:''}</div>
           ${streakTxt?`<div style="font-size:13px;color:var(--g5);font-weight:600;margin-top:3px">${streakTxt}</div>`:''}
           ${partnerTxt?`<div style="font-size:13px;color:var(--tm);margin-top:2px">${partnerTxt}</div>`:''}
         </div>
@@ -1835,7 +1888,9 @@ function renderStats(){
   html+=`<div class="card" style="padding:16px;margin-top:18px">
     <div style="font-size:17px;font-weight:800;font-family:var(--f-head);color:var(--g6);margin-bottom:10px">📖 Legenda</div>
     <div style="font-size:15px;color:var(--ts);line-height:1.9">
-      <div><strong>Numero nel cerchio</strong> — posizione attuale in classifica (Ranking). Il cerchio dorato è il leader; "—" indica chi al momento non è in classifica (fermo da oltre ${RANK_DAYS} giorni).</div>
+      ${canSeeRank()
+        ?`<div><strong>Numero nel cerchio</strong> — posizione attuale in classifica (Ranking). Il cerchio dorato è il leader; "—" indica chi al momento non è in classifica (fermo da oltre ${RANK_DAYS} giorni).</div>`
+        :`<div><strong>Lettere nel cerchio</strong> — le iniziali del giocatore.</div>`}
       <div><strong>Incontri</strong> — giornate a cui il giocatore ha partecipato in carriera</div>
       <div><strong>Partite</strong> — singole partite giocate in carriera (tre per ogni incontro)</div>
       <div><strong>% vinte</strong> — percentuale di partite vinte in carriera</div>
@@ -1883,7 +1938,7 @@ function showProfile(id){
   let h=`<div class="profile-header"><div class="profile-avatar-big">${pinits(id)}</div><div>
     <div class="profile-name">${pFullName(p)}</div>
     ${p.nick?`<div style="font-size:14px;color:var(--g3);margin-bottom:3px">"${p.nick}"</div>`:''}
-    <div class="profile-role">${activeRank?'Rank #'+activeRank+' · Rating '+rRank.rating+' (ultimi '+RANK_DAYS+'gg)':'Non in classifica · inattivo da oltre '+RANK_DAYS+' giorni'}</div>
+    <div class="profile-role">${!canSeeRank()?'Socio del circolo':(activeRank?'Rank #'+activeRank+' · Rating '+rRank.rating+' (ultimi '+RANK_DAYS+'gg)':'Non in classifica · inattivo da oltre '+RANK_DAYS+' giorni')}</div>
   </div></div>`;
   h+=`<div style="font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--tm);margin-bottom:10px;">Carriera</div>
     <div class="sgrid"><div class="scard dark"><div class="sn">${r.sessions}</div><div class="sl">Incontri</div></div><div class="scard gold"><div class="sn">${r.winPct}%</div><div class="sl">% Vittorie</div></div><div class="scard dark"><div class="sn">${r.wins}</div><div class="sl">Vittorie</div></div><div class="scard gold"><div class="sn">${r.gameDiff>0?'+':''}${r.gameDiff}</div><div class="sl">Diff. Game</div></div></div>`;
@@ -1900,9 +1955,10 @@ function showProfile(id){
   if(perSession.length>0){
     h+=`<div style="font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--tm);margin-bottom:12px;">Tutte le partite · ${perSession.length} incontri</div>`;
     perSession.forEach(sess=>{
-      const esito = sess.myPts!=null
-        ? (sess.mySweep?'<span class="sweep-badge">En Plein</span>':`<span style="font-size:13px;color:var(--g3);font-weight:600">${sess.myPts} pt</span>`)
-        : '';
+      const esito = sess.myPts==null ? ''
+        : (sess.mySweep
+            ? '<span class="sweep-badge">En Plein</span>'
+            : (canSeeRank()?`<span style="font-size:13px;color:var(--g3);font-weight:600">${sess.myPts} pt</span>`:''));
       h+=`<div class="card" style="padding:0;margin-bottom:12px;overflow:hidden">
         <div style="background:var(--g7);padding:9px 14px;display:flex;justify-content:space-between;align-items:center">
           <span style="font-family:var(--f-head);font-size:15px;font-weight:700;color:var(--d2)">📅 ${sess.date}</span>${esito}
@@ -1965,6 +2021,23 @@ function renderAdmin(){
       <p>Visibile solo a te. Questi giocatori vengono sempre abbinati insieme quando entrambi presenti.</p>
       <div id="forced-list"></div>
       <button class="btn btn-d btn-sm" style="margin-top:12px" onclick="openForcedModal()">✚ Aggiungi Abbinamento</button>
+    </div>
+    <div class="admin-box" style="border-color:var(--g5)">
+      <div class="admin-box-title">🏆 Classifica e punteggi</div>
+      <p style="font-size:15px;color:var(--tm);margin-bottom:14px;line-height:1.6">
+        Decide se <strong>classifica, rating e punti dei singoli giocatori</strong> sono visibili a tutti
+        oppure solo a te. Gli incontri, lo storico e le coppie vincitrici restano sempre visibili a tutti.
+      </p>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--g0);border-radius:var(--rs);padding:14px 16px;margin-bottom:14px">
+        <div>
+          <div style="font-size:16px;font-weight:800;color:var(--g7)">Stato attuale</div>
+          <div style="font-size:15px;font-weight:700;color:${RANK_PUBLIC?'var(--g5)':'#c03030'}">${RANK_PUBLIC?'👁 Visibile a tutti':'🔒 Solo Super Admin'}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-sm ${RANK_PUBLIC?'btn-g':'btn-ol'}" style="flex:1;min-width:140px" onclick="setRankPublic(true)">👁 Mostra a tutti</button>
+        <button class="btn btn-sm ${!RANK_PUBLIC?'btn-d':'btn-ol'}" style="flex:1;min-width:140px" onclick="setRankPublic(false)">🔒 Solo Super Admin</button>
+      </div>
     </div>
     <div class="pwd-box"><div class="pwd-box-title">🔑 Gestione Password</div>
       <p style="font-size:14px;color:var(--tm);margin-bottom:14px;">Cambia le password di accesso all'app.</p>
@@ -2116,13 +2189,16 @@ function doLogin(){
     document.getElementById('tab-admin').classList.remove('hidden');
     cm('m-login'); toast('Accesso Admin effettuato','ok');
   } else { toast('Password non corretta','err'); return; }
-  updateSelCnt(); renderAdmin(); renderHome(); renderRegolamento();
+  applyRankVisibility();
+  updateSelCnt(); renderAdmin(); renderHome(); renderRegolamento(); renderStats();
 }
 
 // ═══════════════════════════════════════════════
 //  NAVIGAZIONE & UTILITY
 // ═══════════════════════════════════════════════
 function nav(page,tabEl){
+  // La pagina Classifica è raggiungibile solo se consentita
+  if(page==='ranking' && !canSeeRank()){ page='home'; tabEl=document.getElementById('tab-home'); }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+page).classList.add('active');
@@ -2136,16 +2212,24 @@ function nav(page,tabEl){
 }
 function refreshAll(){ renderHome(); renderRanking(); renderStorico(); renderStats(); renderRegolamento(); }
 function goNuovoIncontro(){ nav('sessione',document.getElementById('tab-sessione')); }
-function goLeaderProfile(){ if(!S._leaderId){toast('Nessun leader in classifica al momento','err');return;} showProfile(S._leaderId); }
+function goLeaderProfile(){
+  // Classifica riservata: la card porta allo storico invece che al profilo del leader
+  if(!canSeeRank()){ nav('storico',document.getElementById('tab-storico')); return; }
+  if(!S._leaderId){toast('Nessun leader in classifica al momento','err');return;}
+  showProfile(S._leaderId);
+}
 function showRoster(){
-  const rm=ratingMap(),sorted=[...S.players].sort((a,b)=>(rm[b.id]?.rating||0)-(rm[a.id]?.rating||0));
+  const rm=ratingMap();
+  const sorted=canSeeRank()
+    ? [...S.players].sort((a,b)=>(rm[b.id]?.rating||0)-(rm[a.id]?.rating||0))
+    : [...S.players].sort((a,b)=>pDisplayName(a).localeCompare(pDisplayName(b)));
   document.getElementById('roster-sub').textContent=sorted.length+' giocatori nel circolo';
   document.getElementById('roster-body').innerHTML=sorted.length===0?'<div class="empty"><div class="ei">👥</div><p>Nessun giocatore</p></div>':
     '<div style="padding:4px 0">'+sorted.map((p,i)=>{ const r=rm[p.id],active=r&&r.matches>0;
       return `<div class="pstat-row" style="cursor:pointer;padding:12px 0" onclick="cm('m-roster');showProfile(${p.id})">
-        <div class="pav${active&&i<3?' g':''}">${active?i+1:'—'}</div>
-        <div class="pi"><div class="pn">${pDisplayName(p)}</div><div class="ps">${active?r.matches+' part. (ultimi '+RANK_DAYS+'gg) · V:'+r.wins+' P:'+r.draws+' S:'+r.losses:'Non in classifica'}</div></div>
-        <div class="prating">${active?r.rating:'—'}</div></div>`; }).join('')+'</div>';
+        <div class="pav${canSeeRank()&&active&&i<3?' g':''}">${canSeeRank()?(active?i+1:'—'):pinits(p.id)}</div>
+        <div class="pi"><div class="pn">${pDisplayName(p)}</div><div class="ps">${active?r.matches+' part. (ultimi '+RANK_DAYS+'gg) · V:'+r.wins+' P:'+r.draws+' S:'+r.losses:(canSeeRank()?'Non in classifica':'')}</div></div>
+        ${canSeeRank()?`<div class="prating">${active?r.rating:'—'}</div>`:''}</div>`; }).join('')+'</div>';
   om('m-roster');
 }
 function om(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
@@ -2406,6 +2490,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   }
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   await hydrate();
+  applyRankVisibility();
   renderHome(); renderChips(); updateSelCnt(); clockReset(); renderRegolamento();
 });
 </script>

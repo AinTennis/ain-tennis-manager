@@ -425,12 +425,16 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
 
 <!-- ═══ RANKING ═══ -->
 <div class="page" id="page-ranking">
-  <div class="sh"><h1>🏆 Classifica</h1><p>Rendimento × presenze reali · più giochi, più conti</p></div>
-  <div id="rank-list"></div>
-  <div class="card" id="rank-pending" style="display:none;padding:16px;"></div>
-  <div id="pres-panel"></div>
-  <div class="card" id="rank-legend" style="padding:16px;"></div>
-  <div id="career-rank-panel"></div>
+  <div class="sh"><h1>🏆 Classifica</h1><p id="rank-sub">Rendimento × presenze reali · più giochi, più conti</p></div>
+  <div id="rank-mode"></div>
+  <div id="rank-annual" style="display:none"></div>
+  <div id="rank-perf">
+    <div id="rank-list"></div>
+    <div class="card" id="rank-pending" style="display:none;padding:16px;"></div>
+    <div id="pres-panel"></div>
+    <div class="card" id="rank-legend" style="padding:16px;"></div>
+    <div id="career-rank-panel"></div>
+  </div>
 </div>
 
 <!-- ═══ INCONTRO ═══ -->
@@ -692,6 +696,14 @@ const DEFAULT_ADM = 'AIN_Admin2024';
 const RANK_DAYS  = 60;  // il RENDIMENTO considera gli incontri degli ultimi 60 giorni
 const PRES_DAYS  = 90;  // le PRESENZE si calcolano sugli incontri degli ultimi 90 giorni
 const SWEEP_BONUS = 5;  // punti extra alla coppia che vince tutte e 3 le partite (en plein)
+// ── CLASSIFICA ANNUALE (stagione solare 1 gennaio → 31 dicembre) ──
+// Punteggio secco, senza bonus En Plein, senza peso presenze, senza correzioni manuali.
+const ANN_WIN  = 3;  // punti per ogni partita vinta
+const ANN_DRAW = 1;  // punti per ogni partita pareggiata
+const ANN_PRES = 1;  // punti per ogni incontro a cui il giocatore ha partecipato
+// Modalità attiva nella pagina Classifica: 'perf' (rendimento) oppure 'annual' (annuale)
+let RANK_MODE = 'perf';
+let ANN_YEAR  = new Date().getFullYear();   // al 1° gennaio la stagione riparte da sola
 // Formula del peso presenze: 'sqrt' (equilibrata) oppure 'linear' (severa).
 // Modificabile dal Super Admin dal pannello nel Ranking; salvata in config.
 let PRES_FORMULA = 'sqrt';
@@ -992,6 +1004,52 @@ function careerStats(){
   });
   return Object.values(R).sort((a,b)=>b.matches-a.matches);
 }
+// ══ CLASSIFICA ANNUALE ══
+// Stagione = anno solare: dal 1° gennaio al 31 dicembre. Il 1° gennaio successivo
+// la classifica riparte da zero (le stagioni passate restano consultabili).
+function seasonRange(year){
+  return { from:new Date(year,0,1,0,0,0,0).getTime(), to:new Date(year,11,31,23,59,59,999).getTime() };
+}
+// Anni con almeno un incontro + l'anno corrente (per il selettore di stagione)
+function seasonYears(){
+  const ys=new Set([new Date().getFullYear()]);
+  S.sessions.forEach(s=>{ const t=parseSessDate(s); if(t) ys.add(new Date(t).getFullYear()); });
+  return [...ys].sort((a,b)=>b-a);
+}
+// Punti = 3 per vittoria + 1 per pareggio + 1 per ogni presenza (incontro giocato).
+// I punti partita valgono per entrambi i giocatori della coppia, come nel resto dell'app.
+function annualStats(year){
+  const {from,to}=seasonRange(year);
+  const R={};
+  S.players.forEach(p=>{ R[p.id]={id:p.id,name:pDisplayName(p),fullName:pFullName(p),level:p.level,
+    sessions:0,wins:0,draws:0,losses:0,matches:0,gameDiff:0}; });
+  S.sessions.forEach(sess=>{
+    const t=parseSessDate(sess);
+    if(!t || t<from || t>to) return;            // fuori stagione → non conta
+    const {perCouple}=computeSession(sess.results, sess.couples||[]);
+    const inSess=new Set();
+    (sess.couples||[]).forEach((c,ci)=>{
+      const stat=perCouple[ci]; if(!stat || stat.m===0) return;   // coppia senza partite giocate
+      c.filter(Boolean).forEach(id=>{
+        if(!R[id]) return;
+        inSess.add(id);
+        R[id].wins+=stat.w; R[id].draws+=stat.d; R[id].losses+=stat.l;
+        R[id].matches+=stat.m; R[id].gameDiff+=stat.diff;
+      });
+    });
+    inSess.forEach(id=>{ if(R[id]) R[id].sessions++; });   // 1 presenza per incontro giocato
+  });
+  Object.values(R).forEach(r=>{
+    r.winPts  = r.wins*ANN_WIN;
+    r.drawPts = r.draws*ANN_DRAW;
+    r.presPts = r.sessions*ANN_PRES;
+    r.pts     = r.winPts + r.drawPts + r.presPts;
+    r.winPct  = r.matches>0 ? Math.round(r.wins/r.matches*100) : 0;
+  });
+  // Parità: più vittorie, poi differenza game, poi ordine alfabetico
+  return Object.values(R).sort((a,b)=>b.pts-a.pts||b.wins-a.wins||b.gameDiff-a.gameDiff||a.name.localeCompare(b.name));
+}
+
 function ratingMap(){ const m={}; ratings().forEach((r,i)=>{ m[r.id]={...r,rank:i+1}; }); return m; }
 
 // ═══════════════════════════════════════════════
@@ -1406,15 +1464,103 @@ function updateSelCnt(){
 // ═══════════════════════════════════════════════
 //  RANKING
 // ═══════════════════════════════════════════════
+// Smistatore: decide quale delle due classifiche mostrare.
 function renderRanking(){
   // Sicurezza: se la classifica non è pubblica, non genero nulla per i non Super Admin
   if(!canSeeRank()){
-    ['rank-list','pres-panel','rank-legend','career-rank-panel'].forEach(id=>{
+    ['rank-list','pres-panel','rank-legend','career-rank-panel','rank-mode','rank-annual'].forEach(id=>{
       const e=document.getElementById(id); if(e) e.innerHTML='';
     });
     const rp=document.getElementById('rank-pending'); if(rp) rp.style.display='none';
     return;
   }
+  const isAnn = RANK_MODE==='annual';
+  renderRankModeBar();
+  const perfBox=document.getElementById('rank-perf'), annBox=document.getElementById('rank-annual');
+  if(perfBox) perfBox.style.display = isAnn?'none':'';
+  if(annBox)  annBox.style.display  = isAnn?'':'none';
+  const sub=document.getElementById('rank-sub');
+  if(sub) sub.textContent = isAnn
+    ? 'Stagione '+ANN_YEAR+' · 3 punti vittoria · 1 pareggio · 1 presenza'
+    : 'Rendimento × presenze reali · più giochi, più conti';
+  if(isAnn) renderAnnualRank(); else renderRankPerf();
+}
+
+// Selettore delle due modalità (pulsanti grandi, pensati per lo smartphone)
+function renderRankModeBar(){
+  const el=document.getElementById('rank-mode'); if(!el) return;
+  const isAnn = RANK_MODE==='annual';
+  el.innerHTML=`<div class="card" style="padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <button class="btn btn-sm ${!isAnn?'btn-g':'btn-ol'}" onclick="setRankMode('perf')">📈 Rendimento</button>
+    <button class="btn btn-sm ${isAnn?'btn-g':'btn-ol'}" onclick="setRankMode('annual')">📅 Annuale ${ANN_YEAR}</button>
+  </div>`;
+}
+function setRankMode(m){ RANK_MODE = (m==='annual')?'annual':'perf'; renderRanking(); }
+function setAnnYear(y){ ANN_YEAR = +y; RANK_MODE='annual'; renderRanking(); }
+
+// ── VISTA CLASSIFICA ANNUALE ──
+function renderAnnualRank(){
+  const el=document.getElementById('rank-annual'); if(!el) return;
+  const all=annualStats(ANN_YEAR);
+  const rs=all.filter(r=>r.matches>0);
+  const mx=rs[0]?.pts||1;
+  const years=seasonYears();
+  const now=new Date().getFullYear();
+
+  // Selettore stagione (solo se esiste più di un anno con incontri)
+  const yearBar = years.length>1
+    ? `<div class="card" style="padding:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <span style="font-size:15px;font-weight:700;color:var(--tm)">Stagione:</span>
+        ${years.map(y=>`<button class="btn btn-sm ${y===ANN_YEAR?'btn-g':'btn-ol'}" style="padding:8px 16px;min-height:40px;font-size:16px" onclick="setAnnYear(${y})">${y}</button>`).join('')}
+      </div>` : '';
+
+  let body='';
+  if(rs.length===0){
+    body=`<div class="card"><div class="empty"><p>Nessuna partita giocata nella stagione ${ANN_YEAR}</p></div></div>`;
+  } else {
+    const L=rs[0];
+    body=`<div class="leader-card" onclick="showProfile(${L.id})">
+      <div class="leader-top"><span class="leader-crown">👑</span><span class="leader-label">Leader ${ANN_YEAR}</span></div>
+      <div class="leader-name">${L.name}</div>
+      <div class="leader-stats">${L.sessions} presenze · ${L.matches} part. · V:${L.wins} P:${L.draws} S:${L.losses}</div>
+      <div class="leader-rating"><div class="n">${L.pts}</div><div class="l">punti</div></div>
+    </div>`;
+    const rest=rs.slice(1);
+    if(rest.length>0){
+      body+=`<div class="card" style="padding:8px 0 4px;">`+rest.map((r,idx)=>{
+        const i=idx+1;
+        return `<div class="pstat-row" style="padding:14px 16px;cursor:pointer" onclick="showProfile(${r.id})">
+          <div class="pav${i===1?' s':i===2?' b':''}">${i+1}</div>
+          <div class="pi">
+            <div class="pn">${r.name}</div>
+            <div class="rbar-w"><div class="rbar" style="width:${Math.max(4,Math.round(r.pts/mx*100))}%"></div></div>
+            <div class="ps">${r.matches} part. · V:${r.wins} P:${r.draws} S:${r.losses} · <span style="color:var(--d6);font-weight:700">presenze ${r.sessions}</span></div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div class="prating">${r.pts}</div>
+            <div style="font-size:14px;font-weight:700;color:${r.gameDiff>0?'var(--g5)':r.gameDiff<0?'#c03030':'var(--tm)'}">diff. ${r.gameDiff>0?'+':''}${r.gameDiff}</div>
+          </div>
+        </div>`;
+      }).join('')+`</div>`;
+    }
+  }
+
+  const legend=`<div class="card" style="padding:16px">
+    <div style="font-size:17px;font-weight:800;font-family:var(--f-head);color:var(--g6);margin-bottom:10px">📐 Come si calcola la classifica annuale</div>
+    <div style="font-size:16px;color:var(--ts);line-height:1.65">
+      <div style="margin-bottom:6px">La stagione va dal <strong>1° gennaio</strong> al <strong>31 dicembre ${ANN_YEAR}</strong>. Il 1° gennaio ${ANN_YEAR+1} la classifica <strong>riparte da zero</strong>: le stagioni già chiuse restano consultabili${seasonYears().length>1?' dal selettore qui sopra':''}.</div>
+      <div style="margin-bottom:6px"><strong>Vittoria ${ANN_WIN} punti · Pareggio ${ANN_DRAW} punto · Sconfitta 0</strong> — per ogni partita, assegnati a entrambi i giocatori della coppia.</div>
+      <div style="margin-bottom:6px"><strong>Presenza ${ANN_PRES} punto</strong> — per ogni incontro a cui il giocatore ha partecipato: chi c'è guadagna sempre qualcosa.</div>
+      <div>Qui non contano il bonus En Plein, il peso delle presenze né le correzioni manuali: la classifica annuale è la somma pura dei punti. A parità di punti conta il numero di vittorie, poi la differenza game.</div>
+    </div>
+    <div class="dv"></div>
+    <div style="font-size:15px;color:var(--tm);line-height:1.7"><strong>Legenda:</strong> Part.=partite giocate nella stagione · V=vittorie · P=pareggi · S=sconfitte · Presenze=incontri a cui ha partecipato. Tocca un giocatore per vedere il suo conto dei punti.</div>
+  </div>`;
+
+  el.innerHTML = yearBar + body + legend;
+}
+
+function renderRankPerf(){
   const all=ratings(),rs=all.filter(r=>r.matches>0);
   const mx=rs[0]?.rating||1;
   const rl=document.getElementById('rank-list'); if(!rl) return;
@@ -1943,6 +2089,22 @@ function showProfile(id){
   h+=`<div style="font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--tm);margin-bottom:10px;">Carriera</div>
     <div class="sgrid"><div class="scard dark"><div class="sn">${r.sessions}</div><div class="sl">Incontri</div></div><div class="scard gold"><div class="sn">${r.winPct}%</div><div class="sl">% Vittorie</div></div><div class="scard dark"><div class="sn">${r.wins}</div><div class="sl">Vittorie</div></div><div class="scard gold"><div class="sn">${r.gameDiff>0?'+':''}${r.gameDiff}</div><div class="sl">Diff. Game</div></div></div>`;
   if(r.sweeps>0) h+=`<div style="background:linear-gradient(135deg,var(--d7),var(--d5));border-radius:var(--rs);padding:12px 16px;margin-bottom:16px;color:#fff;font-weight:700;font-size:15px">🏆 ${r.sweeps} en plein in carriera</div>`;
+  // ── Riepilogo della stagione in corso (classifica annuale) ──
+  if(canSeeRank()){
+    const annAll=annualStats(ANN_YEAR);
+    const ann=annAll.find(x=>x.id===id);
+    if(ann && ann.matches>0){
+      const annPos=annAll.filter(x=>x.matches>0).indexOf(ann)+1;
+      h+=`<div style="font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--tm);margin-bottom:10px;">Stagione ${ANN_YEAR} · ${annPos}° posto</div>
+        <div class="sgrid">
+          <div class="scard gold"><div class="sn">${ann.pts}</div><div class="sl">Punti</div></div>
+          <div class="scard dark"><div class="sn">${ann.sessions}</div><div class="sl">Presenze</div></div>
+          <div class="scard dark"><div class="sn">${ann.wins}</div><div class="sl">Vittorie</div></div>
+          <div class="scard gold"><div class="sn">${ann.draws}</div><div class="sl">Pareggi</div></div>
+        </div>
+        <div style="font-size:14px;color:var(--tm);margin:-6px 0 16px">${ann.wins}×3 + ${ann.draws}×1 + ${ann.sessions} presenze = <strong style="color:var(--g6)">${ann.pts} punti</strong></div>`;
+    }
+  }
   const hasInfo=p.tessera||p.email||p.tel||p.note;
   if(hasInfo){
     h+=`<div class="info-grid">`;

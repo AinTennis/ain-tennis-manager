@@ -412,7 +412,7 @@ body{font-family:var(--f-body);background:var(--cr);color:var(--tx);min-height:1
   </div>
   <div class="card" id="home-top-card">
     <div class="ch">
-      <div class="ct">🏆 Top Classifica</div>
+      <div class="ct" id="home-top-ct">🏆 Top Classifica</div>
       <button class="btn btn-sm btn-ol" onclick="nav('ranking',document.getElementById('tab-ranking'))">Tutti →</button>
     </div>
     <div id="home-top"></div>
@@ -701,9 +701,16 @@ const SWEEP_BONUS = 5;  // punti extra alla coppia che vince tutte e 3 le partit
 const ANN_WIN  = 3;  // punti per ogni partita vinta
 const ANN_DRAW = 1;  // punti per ogni partita pareggiata
 const ANN_PRES = 1;  // punti per ogni incontro a cui il giocatore ha partecipato
-// Modalità attiva nella pagina Classifica: 'perf' (rendimento) oppure 'annual' (annuale)
-let RANK_MODE = 'perf';
-let ANN_YEAR  = new Date().getFullYear();   // al 1° gennaio la stagione riparte da sola
+// Classifica mostrata a ospiti e admin: 'perf' (rendimento) oppure 'annual' (annuale).
+// La sceglie il Super Admin dal pannello Admin ed è salvata in config (chiave 'rank_mode'),
+// quindi vale per tutti i dispositivi.
+let RANK_MODE_PUBLIC = 'perf';
+// Anteprima personale del Super Admin: vale solo per il suo schermo e non viene salvata.
+let RANK_VIEW_SA = null;
+// Classifica effettivamente mostrata all'utente che sta guardando
+function rankMode(){ return (S.role==='superadmin' && RANK_VIEW_SA) ? RANK_VIEW_SA : RANK_MODE_PUBLIC; }
+let ANN_YEAR  = new Date().getFullYear();   // stagione sfogliata (al 1° gennaio riparte da sola)
+function seasonNow(){ return new Date().getFullYear(); }   // stagione in corso
 // Formula del peso presenze: 'sqrt' (equilibrata) oppure 'linear' (severa).
 // Modificabile dal Super Admin dal pannello nel Ranking; salvata in config.
 let PRES_FORMULA = 'sqrt';
@@ -733,6 +740,16 @@ async function setRankPublic(v){
   catch(e){ toast('Errore salvataggio: '+e.message,'err'); }
   applyRankVisibility(); refreshAll(); renderAdmin();
   toast(RANK_PUBLIC?'Classifica visibile a tutti':'Classifica riservata al Super Admin','gld');
+}
+
+// Sceglie la classifica mostrata a ospiti e admin (solo Super Admin).
+async function setPublicRankMode(m){
+  RANK_MODE_PUBLIC = (m==='annual')?'annual':'perf';
+  RANK_VIEW_SA = null;                      // mi riallineo a ciò che vedono i soci
+  try{ await dbSaveConfig('rank_mode', RANK_MODE_PUBLIC); }
+  catch(e){ toast('Errore salvataggio: '+e.message,'err'); }
+  refreshAll(); renderAdmin();
+  toast(RANK_MODE_PUBLIC==='annual'?'A tutti viene mostrata la classifica annuale':'A tutti viene mostrata la classifica a rendimento','gld');
 }
 
 let S = {
@@ -768,6 +785,8 @@ async function hydrate() {
     const pf=cfg.find(c=>c.key==='pres_formula')?.value; if(pf==='linear'||pf==='sqrt') PRES_FORMULA=pf;
     // Visibilità pubblica di classifica e punteggi ('0' = solo Super Admin)
     RANK_PUBLIC = cfg.find(c=>c.key==='rank_public')?.value !== '0';
+    // Quale classifica vedono ospiti e admin ('annual' = annuale, altrimenti rendimento)
+    const rmv = cfg.find(c=>c.key==='rank_mode')?.value; if(rmv==='annual'||rmv==='perf') RANK_MODE_PUBLIC=rmv;
     // Aggiustamenti manuali dei punti (bonus/malus assegnati dal Super Admin)
     try{ const adj=cfg.find(c=>c.key==='point_adjustments')?.value; S.adjustments = adj?JSON.parse(adj):{}; }catch(e){ S.adjustments={}; }
     sortSessions();  // ordine cronologico vero (la data sul DB è testo gg/mm/aaaa)
@@ -1050,6 +1069,13 @@ function annualStats(year){
   return Object.values(R).sort((a,b)=>b.pts-a.pts||b.wins-a.wins||b.gameDiff-a.gameDiff||a.name.localeCompare(b.name));
 }
 
+// Posizione di ogni giocatore nella classifica ATTUALMENTE MOSTRATA
+// (rendimento oppure annuale): serve a Statistiche e profilo, così i numeri
+// che il socio vede sono sempre quelli della sua classifica.
+function rankPosMap(){
+  const list=(rankMode()==='annual' ? annualStats(seasonNow()) : ratings()).filter(r=>r.matches>0);
+  const m={}; list.forEach((r,i)=>{ m[r.id]=i+1; }); return m;
+}
 function ratingMap(){ const m={}; ratings().forEach((r,i)=>{ m[r.id]={...r,rank:i+1}; }); return m; }
 
 // ═══════════════════════════════════════════════
@@ -1474,7 +1500,7 @@ function renderRanking(){
     const rp=document.getElementById('rank-pending'); if(rp) rp.style.display='none';
     return;
   }
-  const isAnn = RANK_MODE==='annual';
+  const isAnn = rankMode()==='annual';
   renderRankModeBar();
   const perfBox=document.getElementById('rank-perf'), annBox=document.getElementById('rank-annual');
   if(perfBox) perfBox.style.display = isAnn?'none':'';
@@ -1486,17 +1512,27 @@ function renderRanking(){
   if(isAnn) renderAnnualRank(); else renderRankPerf();
 }
 
-// Selettore delle due modalità (pulsanti grandi, pensati per lo smartphone)
+// Selettore delle due modalità: lo vede SOLO il Super Admin ed è una semplice anteprima.
+// Ospiti e admin vedono soltanto la classifica scelta nel pannello Admin.
 function renderRankModeBar(){
   const el=document.getElementById('rank-mode'); if(!el) return;
-  const isAnn = RANK_MODE==='annual';
-  el.innerHTML=`<div class="card" style="padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
-    <button class="btn btn-sm ${!isAnn?'btn-g':'btn-ol'}" onclick="setRankMode('perf')">📈 Rendimento</button>
-    <button class="btn btn-sm ${isAnn?'btn-g':'btn-ol'}" onclick="setRankMode('annual')">📅 Annuale ${ANN_YEAR}</button>
+  if(S.role!=='superadmin'){ el.innerHTML=''; return; }
+  const isAnn = rankMode()==='annual';
+  const diversa = rankMode()!==RANK_MODE_PUBLIC;
+  const pubLbl = RANK_MODE_PUBLIC==='annual' ? 'Annuale' : 'Rendimento';
+  el.innerHTML=`<div class="card" style="padding:12px">
+    <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--tm);margin:0 4px 10px">Anteprima · solo tu</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button class="btn btn-sm ${!isAnn?'btn-g':'btn-ol'}" onclick="setRankMode('perf')">📈 Rendimento</button>
+      <button class="btn btn-sm ${isAnn?'btn-g':'btn-ol'}" onclick="setRankMode('annual')">📅 Annuale ${ANN_YEAR}</button>
+    </div>
+    <div style="font-size:14px;color:var(--tm);line-height:1.55;margin:11px 4px 2px">${diversa
+      ? `A soci e admin è mostrata la classifica <strong>${pubLbl}</strong>: quella che stai guardando la vedi solo tu. Per cambiare quella pubblica vai in <strong>Admin → Classifica e punteggi</strong>.`
+      : `È la stessa classifica che vedono soci e admin.`}</div>
   </div>`;
 }
-function setRankMode(m){ RANK_MODE = (m==='annual')?'annual':'perf'; renderRanking(); }
-function setAnnYear(y){ ANN_YEAR = +y; RANK_MODE='annual'; renderRanking(); }
+function setRankMode(m){ RANK_VIEW_SA = (m==='annual')?'annual':'perf'; refreshAll(); }
+function setAnnYear(y){ ANN_YEAR = +y; renderRanking(); }
 
 // ── VISTA CLASSIFICA ANNUALE ──
 function renderAnnualRank(){
@@ -1736,7 +1772,11 @@ function renderHome(){
   document.getElementById('s-ss').textContent=S.sessions.length;
   let tot=0; S.sessions.forEach(s=>tot+=s.results.length);
   document.getElementById('s-pt').textContent=tot;
-  const allRatings=ratings(),qualified=allRatings.filter(r=>r.matches>0);
+  // Home e Classifica mostrano la stessa graduatoria: quella scelta dal Super Admin
+  const homeAnn = rankMode()==='annual';
+  const homeYear = seasonNow();
+  const homeScore = r => homeAnn ? r.pts : r.rating;
+  const qualified=(homeAnn?annualStats(homeYear):ratings()).filter(r=>r.matches>0);
   const leader=qualified[0]||null; S._leaderId=leader?.id||null;
   const ldrN=document.getElementById('s-ldr'), ldrL=document.getElementById('s-ldr-lbl');
   if(canSeeRank()){
@@ -1758,14 +1798,16 @@ function renderHome(){
   // Top classifica (nascosta se la classifica non è pubblica)
   const htc=document.getElementById('home-top-card');
   if(htc) htc.style.display=canSeeRank()?'':'none';
-  const top=qualified.slice(0,5),maxR=top[0]?.rating||1;
+  const htct=document.getElementById('home-top-ct');
+  if(htct) htct.textContent = homeAnn ? `🏆 Top ${homeYear}` : '🏆 Top Classifica';
+  const top=qualified.slice(0,5),maxR=(top[0]?homeScore(top[0]):0)||1;
   document.getElementById('home-top').innerHTML=top.length===0?
-    `<div class="empty"><div class="ei">🎾</div><p>Nessuna partita negli ultimi ${RANK_DAYS} giorni</p></div>`:
+    `<div class="empty"><div class="ei">🎾</div><p>${homeAnn?`Nessuna partita nella stagione ${homeYear}`:`Nessuna partita negli ultimi ${RANK_DAYS} giorni`}</p></div>`:
     top.map((r,i)=>`<div class="pstat-row${i===0?' home-top1':''}" style="cursor:pointer" onclick="showProfile(${r.id})">
       <div class="pav${i===0?' g crown':''}">${i===0?'👑':i+1}</div>
-      <div class="pi"><div class="pn">${r.name}</div><div class="ps">${r.matches} partite · ${r.winPct}% vinte</div>
-      <div class="pb"><div style="height:4px;flex:1;background:var(--g0);border-radius:2px"><div style="height:4px;width:${Math.max(4,Math.round(r.rating/maxR*100))}%;background:var(--g4);border-radius:2px"></div></div></div></div>
-      <div class="prating">${r.rating}</div></div>`).join('');
+      <div class="pi"><div class="pn">${r.name}</div><div class="ps">${homeAnn?`${r.matches} partite · presenze ${r.sessions}`:`${r.matches} partite · ${r.winPct}% vinte`}</div>
+      <div class="pb"><div style="height:4px;flex:1;background:var(--g0);border-radius:2px"><div style="height:4px;width:${Math.max(4,Math.round(homeScore(r)/maxR*100))}%;background:var(--g4);border-radius:2px"></div></div></div></div>
+      <div class="prating">${homeScore(r)}</div></div>`).join('');
 
   // Ultimo incontro — con TUTTE le partite e vincitore in evidenza
   if(S.sessions.length>0){
@@ -1972,7 +2014,7 @@ function renderStats(){
     });
   });
   // Rank attuale (dalla classifica 60gg) per il cerchio
-  const rmap={}; ratings().forEach((r,i)=>{ if(r.matches>0) rmap[r.id]=i+1; });
+  const rmap=rankPosMap();
 
   // Bilancio degli ultimi 30 giorni
   const limite = Date.now() - 30*24*60*60*1000;
@@ -1990,7 +2032,7 @@ function renderStats(){
     });
   });
 
-  const rmapSort={}; ratings().forEach((r,i)=>{ if(r.matches>0) rmapSort[r.id]=i+1; });
+  const rmapSort=rankPosMap();
   const qualified=allR.filter(r=>r.matches>0).sort((a,b)=>{
     // Classifica riservata: ordine alfabetico, così non trapela la posizione
     if(!canSeeRank()) return String(a.name).localeCompare(String(b.name));
@@ -2035,7 +2077,7 @@ function renderStats(){
     <div style="font-size:17px;font-weight:800;font-family:var(--f-head);color:var(--g6);margin-bottom:10px">📖 Legenda</div>
     <div style="font-size:15px;color:var(--ts);line-height:1.9">
       ${canSeeRank()
-        ?`<div><strong>Numero nel cerchio</strong> — posizione attuale in classifica (Ranking). Il cerchio dorato è il leader; "—" indica chi al momento non è in classifica (fermo da oltre ${RANK_DAYS} giorni).</div>`
+        ?`<div><strong>Numero nel cerchio</strong> — posizione nella classifica ${rankMode()==='annual'?`annuale ${seasonNow()}`:'(Ranking)'}. Il cerchio dorato è il leader; "—" indica chi al momento non è in classifica ${rankMode()==='annual'?`(nessuna partita nella stagione ${seasonNow()})`:`(fermo da oltre ${RANK_DAYS} giorni)`}.</div>`
         :`<div><strong>Lettere nel cerchio</strong> — le iniziali del giocatore.</div>`}
       <div><strong>Incontri</strong> — giornate a cui il giocatore ha partecipato in carriera</div>
       <div><strong>Partite</strong> — singole partite giocate in carriera (tre per ogni incontro)</div>
@@ -2059,6 +2101,11 @@ function showProfile(id){
   const r=cs.find(x=>x.id===id);                     // dati carriera (sempre)
   const p=S.players.find(x=>x.id===id); if(!r||!p) return;
   const activeRank = rRank && rRank.matches>0 ? (rs.filter(x=>x.matches>0).indexOf(rRank)+1) : null;
+  // Riga sotto il nome: rispecchia la classifica che l'utente sta vedendo
+  const annNow = rankMode()==='annual';
+  const annList = annNow ? annualStats(seasonNow()).filter(x=>x.matches>0) : [];
+  const annMe = annNow ? annList.find(x=>x.id===id) : null;
+  const annPos = annMe ? annList.indexOf(annMe)+1 : null;
   const details=[];
   // Raccoglie le partite del giocatore raggruppate per incontro (sessione)
   const perSession=[];
@@ -2084,7 +2131,9 @@ function showProfile(id){
   let h=`<div class="profile-header"><div class="profile-avatar-big">${pinits(id)}</div><div>
     <div class="profile-name">${pFullName(p)}</div>
     ${p.nick?`<div style="font-size:14px;color:var(--g3);margin-bottom:3px">"${p.nick}"</div>`:''}
-    <div class="profile-role">${!canSeeRank()?'Socio del circolo':(activeRank?'Rank #'+activeRank+' · Rating '+rRank.rating+' (ultimi '+RANK_DAYS+'gg)':'Non in classifica · inattivo da oltre '+RANK_DAYS+' giorni')}</div>
+    <div class="profile-role">${!canSeeRank()?'Socio del circolo':(annNow
+      ? (annPos?annPos+'° posto · '+annMe.pts+' punti (stagione '+seasonNow()+')':'Nessuna partita nella stagione '+seasonNow())
+      : (activeRank?'Rank #'+activeRank+' · Rating '+rRank.rating+' (ultimi '+RANK_DAYS+'gg)':'Non in classifica · inattivo da oltre '+RANK_DAYS+' giorni'))}</div>
   </div></div>`;
   h+=`<div style="font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--tm);margin-bottom:10px;">Carriera</div>
     <div class="sgrid"><div class="scard dark"><div class="sn">${r.sessions}</div><div class="sl">Incontri</div></div><div class="scard gold"><div class="sn">${r.winPct}%</div><div class="sl">% Vittorie</div></div><div class="scard dark"><div class="sn">${r.wins}</div><div class="sl">Vittorie</div></div><div class="scard gold"><div class="sn">${r.gameDiff>0?'+':''}${r.gameDiff}</div><div class="sl">Diff. Game</div></div></div>`;
@@ -2199,6 +2248,22 @@ function renderAdmin(){
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-sm ${RANK_PUBLIC?'btn-g':'btn-ol'}" style="flex:1;min-width:140px" onclick="setRankPublic(true)">👁 Mostra a tutti</button>
         <button class="btn btn-sm ${!RANK_PUBLIC?'btn-d':'btn-ol'}" style="flex:1;min-width:140px" onclick="setRankPublic(false)">🔒 Solo Super Admin</button>
+      </div>
+      <div class="dv"></div>
+      <div style="font-size:16px;font-weight:800;color:var(--g7);margin-bottom:6px">Quale classifica vedono tutti</div>
+      <p style="font-size:15px;color:var(--tm);margin-bottom:14px;line-height:1.6">
+        Ospiti e admin vedono <strong>solo questa</strong>, sia nella pagina Classifica sia in Home.
+        Tu puoi comunque sfogliare l'altra dalla pagina Classifica: è un'anteprima che resta sul tuo schermo.
+      </p>
+      <div style="display:flex;align-items:center;gap:12px;background:var(--g0);border-radius:var(--rs);padding:14px 16px;margin-bottom:14px">
+        <div>
+          <div style="font-size:16px;font-weight:800;color:var(--g7)">Mostrata ora</div>
+          <div style="font-size:15px;font-weight:700;color:var(--g5)">${RANK_MODE_PUBLIC==='annual'?'📅 Annuale '+seasonNow()+' — 3 vittoria · 1 pareggio · 1 presenza':'📈 Rendimento — forma recente × presenze'}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-sm ${RANK_MODE_PUBLIC==='perf'?'btn-g':'btn-ol'}" style="flex:1;min-width:140px" onclick="setPublicRankMode('perf')">📈 Rendimento</button>
+        <button class="btn btn-sm ${RANK_MODE_PUBLIC==='annual'?'btn-g':'btn-ol'}" style="flex:1;min-width:140px" onclick="setPublicRankMode('annual')">📅 Annuale ${seasonNow()}</button>
       </div>
     </div>
     <div class="pwd-box"><div class="pwd-box-title">🔑 Gestione Password</div>
